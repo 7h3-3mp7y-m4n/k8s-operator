@@ -61,7 +61,7 @@ func (c *ConfigmapSubscirption) Reconcile(object runtime.Object, event watch.Eve
 		c.PlatformConfigPhase = string(event)
 		rawString := configmap.Data["default"]
 		var unMarshalData platformConfig
-		err := yaml.Unmarshal([]byte(rawString), unMarshalData)
+		err := yaml.Unmarshal([]byte(rawString), &unMarshalData)
 		if err != nil {
 			klog.Error(err)
 			return

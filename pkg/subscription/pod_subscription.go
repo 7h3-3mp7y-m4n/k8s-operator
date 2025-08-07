@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"log"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,12 +13,33 @@ import (
 )
 
 type PodSubcription struct {
-	WatcherInterface watch.Interface
-	Client           kubernetes.Interface
-	Ctx              context.Context
-	CompletionChan   chan bool
+	WatcherInterface      watch.Interface
+	Client                kubernetes.Interface
+	Ctx                   context.Context
+	CompletionChan        chan bool
+	ConfigMapSubscriptRef *ConfigmapSubscirption
 }
 
+func (p *PodSubcription) applyConfigMapChanges(pod *v1.Pod, event watch.EventType) {
+
+	if p.ConfigMapSubscriptRef != nil {
+		if p.ConfigMapSubscriptRef.PlatformConfigMapAnnotations != nil {
+			updatedPod := pod.DeepCopy()
+			if updatedPod.Annotations == nil {
+				updatedPod.Annotations = make(map[string]string)
+			}
+			// Loop through and apply
+			for _, annotation := range p.ConfigMapSubscriptRef.PlatformConfigMapAnnotations.Annotations {
+				updatedPod.Annotations[annotation.Name] = annotation.Value
+			}
+			// Update the pod
+			_, err := p.Client.CoreV1().Pods(pod.Namespace).Update(p.Ctx, updatedPod, metav1.UpdateOptions{})
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
+}
 func (p *PodSubcription) Reconcile(object runtime.Object, event watch.EventType) {
 	pod := object.(*v1.Pod)
 	klog.Infof("Pod subscription update ->  %s", pod.Name)

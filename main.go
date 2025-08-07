@@ -23,7 +23,7 @@ func main() {
 		log.Fatalf("Error loading kubeconfig: %v", err)
 	}
 	fmt.Printf("listing to kube api %v \n", cfg.Host)
-	defaultclientset, err := kubernetes.NewForConfig(cfg)
+	defaultClientset, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
 		klog.Fatalf("error from building watcher %s", err.Error())
 	}
@@ -32,15 +32,26 @@ func main() {
 	// 	klog.Fatalf("watch interface  : %s", err.Error())
 	// }
 	//genral conetxt
-	context := context.TODO()
-	if err := runtime.Runloop([]subscription.Isubscription{
-		&subscription.ConfigmapSubscirption{
-			Client:         defaultclientset,
-			Ctx:            context,
-			CompletionChan: make(chan bool),
-		},
+	ctx := context.TODO()
+
+	configMapSubscription := &subscription.ConfigmapSubscirption{
+		Client:         defaultClientset,
+		Ctx:            ctx,
+		CompletionChan: make(chan bool),
+	}
+
+	podSubscription := &subscription.PodSubcription{
+		Client:                defaultClientset,
+		Ctx:                   ctx,
+		CompletionChan:        make(chan bool),
+		ConfigMapSubscriptRef: configMapSubscription,
+	}
+
+	if err := runtime.RunLoop([]subscription.Isubscription{
+		configMapSubscription,
+		podSubscription,
 	}); err != nil {
-		klog.Fatalf("this is the error => %v", err.Error())
+		log.Fatalf("RunLoop error: %v", err)
 	}
 }
 

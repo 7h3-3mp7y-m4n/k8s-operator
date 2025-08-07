@@ -3,6 +3,8 @@ package runtime
 import (
 	"k8soperator/pkg/subscription"
 	"sync"
+
+	"k8s.io/klog/v2"
 )
 
 // for {
@@ -14,27 +16,27 @@ import (
 
 var wg sync.WaitGroup
 
-func Runloop(subscription []subscription.Isubscription) error {
-	for _, subsubscription := range subscription {
-		wiface, err := subsubscription.Subscribe()
-		if err != nil {
-			return err
-		}
-		go func() {
-			for {
-				select {
-				case msg := <-wiface.ResultChan():
-					subsubscription.Reconcile(msg.Object, msg.Type)
-					//TODO: want a way to escape
-				}
+func RunLoop(subscriptions []subscription.Isubscription) error {
+	var wg sync.WaitGroup
+
+	for _, sub := range subscriptions {
+		wg.Add(1)
+
+		go func(subscription subscription.Isubscription) {
+			defer wg.Done()
+
+			wiface, err := subscription.Subscribe()
+			if err != nil {
+				klog.Error("Subscription error: %v", err)
+				return
 			}
-		}()
+
+			for event := range wiface.ResultChan() {
+				subscription.Reconcile(event.Object, event.Type)
+			}
+		}(sub)
 	}
-	for _, subscription := range subscription {
-		select {
-		case _ = <-subscription.IsComplete():
-			break
-		}
-	}
+
+	wg.Wait()
 	return nil
 }
